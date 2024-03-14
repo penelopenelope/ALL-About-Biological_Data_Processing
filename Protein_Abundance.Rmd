@@ -14,22 +14,26 @@ output:
       smooth_scroll: false
 tags: protein_abundance
 ---
-## Packages used in this workflow
-```{r}
-library(readxl)
-# library(DEP)
+# Packages used in this workflow
+```{r used_packages}
+library(DEP)
 ```
 
-## Data Loading - Raw protein abundance data
+# Data Loading - Raw protein abundance data
 ```{r protein_abundance_data}
 prot_abundance <- read.table(file = "Protein_abundance.tsv",
                               sep = "\t", header = TRUE)
-# head(prot_abundance, 10)
+head(prot_abundance, 2)
 ```
 
-Give the dimension of the protein abundance data
+Give the dimension of the protein abundance data - containing 3941 proteins and 49 samples.
 ```{r}
 dim(prot_abundance)
+```
+
+Check if there is any duplicated proteins - no duplicated protein.
+```{r}
+anyDuplicated(prot_abundance$X1)
 ```
 
 
@@ -38,8 +42,8 @@ dim(prot_abundance)
 ### annotation data
 ```{r annotation}
 ## Loading required package: readxl
-annotation <- read_excel("sampleAnnotation.xls")
-head(annotation, 10)
+# annotation <- read_excel("sampleAnnotation.xls")
+# head(annotation, 10)
 ```
 
 #### what annatations provided, what are the names of the clinical information
