@@ -13,10 +13,15 @@ output:
       collapsed: true
       smooth_scroll: false
 tags: protein_abundance
+bibliography: references.bib  
 ---
-# Packages used in this workflow
+# Packages used in this workflow 
+Packages used are from @zhang2018proteome
 ```{r used_packages}
 library(DEP)
+library(stringr)
+library(tidyr)
+library(dplyr)
 ```
 
 # Data Loading - Raw protein abundance data
@@ -26,7 +31,7 @@ prot_abundance <- read.table(file = "Protein_abundance.tsv",
 head(prot_abundance, 2)
 ```
 
-Give the dimension of the protein abundance data - containing 3941 proteins and 49 samples.
+Give the dimension of the protein abundance data - containing 3942 proteins and 49 samples.
 ```{r}
 dim(prot_abundance)
 ```
@@ -35,11 +40,67 @@ Check if there is any duplicated proteins - no duplicated protein.
 ```{r}
 anyDuplicated(prot_abundance$X1)
 ```
+Generate a SummerizedExperiment object for downstream analysis from the raw protein abundance data - As there is no replicate for each sample, the column names of the object ends with NA as shown in the warning message, which will not influence the downstrean analysis.
+```{r}
+# Transfer raw values into log2-transformed data - for better differential comparison
+prot_abundance[, -1] <- log(prot_abundance[, -1], 2) + 1
 
+# Sort the columns of the data frame numerically
+prot_abundance <- prot_abundance[, c("X1", str_sort(colnames(prot_abundance[,-1]), numeric = TRUE))]
+head(prot_abundance, 2)
 
-#### Data Size - how many patients, how many proteins
+# # Add suffix behind sampleIDs as replicate
+# colnames(prot_abundance) <- c("X1", paste(colnames(prot_abundance[,-1]), "1", sep = "-"))
+# head(prot_abundance, 2)
 
-### annotation data
+# Separate X1 column into proteinID and geneName
+prot_abundance <- separate_wider_delim(prot_abundance, cols = X1, delim = "|", names = c("prefix", "protID", "geneName"))
+
+# Prepare geneName and proteinID for the SummerizedExperiment object
+prot_abundance <- make_unique(prot_abundance, "geneName", "protID")
+head(prot_abundance, 2)
+
+# Generate the SummerizedExperimen object
+column_names <- grep("A_1_", colnames(prot_abundance))
+SE <- make_se_parse(prot_abundance, column_names, mode = "delim", sep = "-")
+SE
+```
+
+# Data Processing - Normalization and Missingness
+
+Plot the number of proteins overlapped among samples - The barplot shows that most proteins can be identified in all samples, as indicated in the last bar.
+```{r}
+plot_frequency(SE)
+```
+
+## Data Missingness - Review on PBD slides to decide
+On the other hand, there are still a high amount of proteins only existed in few samples, which contains many missing values and need to be imputed. 
+```{r}
+# Filter off proteins identified in more than 2/3 samples
+SE_filtered_missingvals <- filter_proteins(SE, "fraction", min = 0.66)
+plot_frequency(SE_filtered_missingvals)
+```
+
+Plot a barplot of the protein numbers among all samples, after removing the missing values.
+```{r}
+plot_numbers(SE_filtered_missingvals)
+```
+
+Plot a barplot of the protein numbers with different coverages among samples.
+```{r}
+plot_coverage(SE_filtered_missingvals)
+```
+
+## Data Normalization
+
+Background corrected and normalized by variance stabilizing transformation 
+```{r}
+SE_norm <- normalize_vsn(SE_filtered_missingvals)
+plot_normalization(SE_filtered_missingvals, SE_norm)
+
+```
+
+## annotation data
 ```{r annotation}
 ## Loading required package: readxl
 # annotation <- read_excel("sampleAnnotation.xls")
@@ -48,16 +109,12 @@ anyDuplicated(prot_abundance$X1)
 
 #### what annatations provided, what are the names of the clinical information
 
-## Data Processing
-
-### Inspection on data missingness
 
 
+# Quality Assessment
 
-## Quality Assessment
 
-
-## Identify Protein Markers for Prognosis
+# Identify Protein Markers for Prognosis
 
 
 ```{r setup, include = FALSE}

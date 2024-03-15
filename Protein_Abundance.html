@@ -1504,42 +1504,65 @@ div.tocify {
 </div>
 
 
-<div id="packages-used-in-this-workflow" class="section level2" number="0.1">
-<h2 number="0.1"><span class="header-section-number">0.1</span> Packages used in this workflow</h2>
+<div id="packages-used-in-this-workflow" class="section level1" number="1">
+<h1 number="1"><span class="header-section-number">1</span> Packages used in this workflow</h1>
 <pre class="r"><code>library(DEP)</code></pre>
 </div>
-<div id="data-loading---raw-protein-abundance-data" class="section level2" number="0.2">
-<h2 number="0.2"><span class="header-section-number">0.2</span> Data Loading - Raw protein abundance data</h2>
+<div id="data-loading---raw-protein-abundance-data" class="section level1" number="2">
+<h1 number="2"><span class="header-section-number">2</span> Data Loading - Raw protein abundance data</h1>
 <pre class="r"><code>prot_abundance &lt;- read.table(file = &quot;Protein_abundance.tsv&quot;,
                               sep = &quot;\t&quot;, header = TRUE)
-# head(prot_abundance, 10)</code></pre>
-<p>Give the dimension of the protein abundance data</p>
+head(prot_abundance, 2)</code></pre>
+<pre><code>##                          X1    A_1_1   A_1_10   A_1_11    A_1_12   A_1_13
+## 1 sp|A0A0B4J2F0|PIOS1_HUMAN  52102.1 125050.9 127950.7  53948.97 107912.8
+## 2  sp|A0A0U1RRE5|NBDY_HUMAN 360139.2 753984.2 447030.5 731422.23 684069.3
+##      A_1_14   A_1_15   A_1_16   A_1_17   A_1_18    A_1_19    A_1_2    A_1_20
+## 1  77528.14 108104.1  52705.0 131094.0 111673.9  23909.99  44425.1  35395.98
+## 2 648198.63 438458.7 660127.2 687005.1 727560.7 471053.99 229613.9 287915.10
+##      A_1_21    A_1_22    A_1_23    A_1_24   A_1_25   A_1_26   A_1_27    A_1_28
+## 1  19954.95  78414.95  52341.95  54708.03 116855.9  82719.1 160444.3  63658.08
+## 2 381103.09 177628.96 305856.57 252826.23 825257.9 867045.8 786750.6 196027.44
+##      A_1_29     A_1_3   A_1_30   A_1_31   A_1_32    A_1_33   A_1_34   A_1_35
+## 1  93193.02  62139.94 228753.9 441517.5 109222.1  84577.89 252492.1 416634.0
+## 2 677105.60 786485.10 227133.2 873536.0 387875.3 678207.60 473262.2 590923.9
+##      A_1_36    A_1_37    A_1_38    A_1_39     A_1_4   A_1_40    A_1_41
+## 1  40899.06  80713.99  61618.99  74648.01  49757.98  90395.9  65235.05
+## 2 154202.50 294530.28 722931.90 785166.20 703263.53 284436.2 559895.53
+##      A_1_42    A_1_43    A_1_44    A_1_45    A_1_46   A_1_47   A_1_48    A_1_49
+## 1  54903.02  64876.91  84974.09  63600.95  94610.98 128579.2 148041.1  98653.94
+## 2 258065.87 677109.60 539836.57 305968.06 697089.00 579907.9 759759.9 686380.40
+##      A_1_5     A_1_6     A_1_7     A_1_8     A_1_9
+## 1 114634.0  80361.08  65810.94  42605.01  99264.02
+## 2 196684.9 589261.75 661849.80 692631.30 360189.13</code></pre>
+<p>Give the dimension of the protein abundance data - containing 3941 proteins and 49 samples.</p>
 <pre class="r"><code>dim(prot_abundance)</code></pre>
 <pre><code>## [1] 3942   50</code></pre>
-<div id="data-size---how-many-patients-how-many-proteins" class="section level4" number="0.2.0.1">
-<h4 number="0.2.0.1"><span class="header-section-number">0.2.0.1</span> Data Size - how many patients, how many proteins</h4>
+<p>Check if there is any duplicated proteins - no duplicated protein.</p>
+<pre class="r"><code>anyDuplicated(prot_abundance$X1)</code></pre>
+<pre><code>## [1] 0</code></pre>
+<div id="data-size---how-many-patients-how-many-proteins" class="section level4" number="2.0.0.1">
+<h4 number="2.0.0.1"><span class="header-section-number">2.0.0.1</span> Data Size - how many patients, how many proteins</h4>
 </div>
-<div id="annotation-data" class="section level3" number="0.2.1">
-<h3 number="0.2.1"><span class="header-section-number">0.2.1</span> annotation data</h3>
+<div id="annotation-data" class="section level3" number="2.0.1">
+<h3 number="2.0.1"><span class="header-section-number">2.0.1</span> annotation data</h3>
 <pre class="r"><code>## Loading required package: readxl
 # annotation &lt;- read_excel(&quot;sampleAnnotation.xls&quot;)
 # head(annotation, 10)</code></pre>
-<div id="what-annatations-provided-what-are-the-names-of-the-clinical-information" class="section level4" number="0.2.1.1">
-<h4 number="0.2.1.1"><span class="header-section-number">0.2.1.1</span> what annatations provided, what are the names of the clinical information</h4>
+<div id="what-annatations-provided-what-are-the-names-of-the-clinical-information" class="section level4" number="2.0.1.1">
+<h4 number="2.0.1.1"><span class="header-section-number">2.0.1.1</span> what annatations provided, what are the names of the clinical information</h4>
 </div>
 </div>
+<div id="data-processing" class="section level2" number="2.1">
+<h2 number="2.1"><span class="header-section-number">2.1</span> Data Processing</h2>
+<div id="inspection-on-data-missingness" class="section level3" number="2.1.1">
+<h3 number="2.1.1"><span class="header-section-number">2.1.1</span> Inspection on data missingness</h3>
 </div>
-<div id="data-processing" class="section level2" number="0.3">
-<h2 number="0.3"><span class="header-section-number">0.3</span> Data Processing</h2>
-<div id="inspection-on-data-missingness" class="section level3" number="0.3.1">
-<h3 number="0.3.1"><span class="header-section-number">0.3.1</span> Inspection on data missingness</h3>
 </div>
+<div id="quality-assessment" class="section level2" number="2.2">
+<h2 number="2.2"><span class="header-section-number">2.2</span> Quality Assessment</h2>
 </div>
-<div id="quality-assessment" class="section level2" number="0.4">
-<h2 number="0.4"><span class="header-section-number">0.4</span> Quality Assessment</h2>
-</div>
-<div id="identify-protein-markers-for-prognosis" class="section level2" number="0.5">
-<h2 number="0.5"><span class="header-section-number">0.5</span> Identify Protein Markers for Prognosis</h2>
+<div id="identify-protein-markers-for-prognosis" class="section level2" number="2.3">
+<h2 number="2.3"><span class="header-section-number">2.3</span> Identify Protein Markers for Prognosis</h2>
 <p>Vignettes are long form documentation commonly included in packages. Because they are part of the distribution of the package, they need to be as compact as possible. The <code>html_vignette</code> output type provides a custom style sheet (and tweaks some options) to ensure that the resulting html is as small as possible. The <code>html_vignette</code> format:</p>
 <ul>
 <li>Never uses retina figures</li>
@@ -1547,19 +1570,19 @@ div.tocify {
 <li>Uses a custom CSS stylesheet instead of the default Twitter Bootstrap style</li>
 </ul>
 </div>
-<div id="vignette-info" class="section level2" number="0.6">
-<h2 number="0.6"><span class="header-section-number">0.6</span> Vignette Info</h2>
+<div id="vignette-info" class="section level2" number="2.4">
+<h2 number="2.4"><span class="header-section-number">2.4</span> Vignette Info</h2>
 <p>Note the various macros within the <code>vignette</code> section of the metadata block above. These are required in order to instruct R how to build the vignette. Note that you should change the <code>title</code> field and the <code>\VignetteIndexEntry</code> to match the title of your vignette.</p>
 </div>
-<div id="styles" class="section level2" number="0.7">
-<h2 number="0.7"><span class="header-section-number">0.7</span> Styles</h2>
+<div id="styles" class="section level2" number="2.5">
+<h2 number="2.5"><span class="header-section-number">2.5</span> Styles</h2>
 <p>The <code>html_vignette</code> template includes a basic CSS theme. To override this theme you can specify your own CSS in the document metadata as follows:</p>
 <pre><code>output: 
   rmarkdown::html_vignette:
     css: mystyles.css</code></pre>
 </div>
-<div id="figures" class="section level2" number="0.8">
-<h2 number="0.8"><span class="header-section-number">0.8</span> Figures</h2>
+<div id="figures" class="section level2" number="2.6">
+<h2 number="2.6"><span class="header-section-number">2.6</span> Figures</h2>
 <p>The figure sizes have been customised so that you can easily put two images side-by-side.</p>
 <pre class="r"><code>plot(1:10)
 plot(10:1)</code></pre>
@@ -1570,8 +1593,8 @@ plot(10:1)</code></pre>
     fig_caption: yes</code></pre>
 <p>Then you can use the chunk option <code>fig.cap = &quot;Your figure caption.&quot;</code> in <strong>knitr</strong>.</p>
 </div>
-<div id="more-examples" class="section level2" number="0.9">
-<h2 number="0.9"><span class="header-section-number">0.9</span> More Examples</h2>
+<div id="more-examples" class="section level2" number="2.7">
+<h2 number="2.7"><span class="header-section-number">2.7</span> More Examples</h2>
 <p>You can write math expressions, e.g. <span class="math inline">\(Y = X\beta + \epsilon\)</span>, footnotes<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>, and tables, e.g. using <code>knitr::kable()</code>.</p>
 <table>
 <thead>
@@ -1737,6 +1760,7 @@ plot(10:1)</code></pre>
 <blockquote>
 <p>“He who gives up [code] safety for [code] speed deserves neither.” (<a href="https://twitter.com/hadleywickham/status/504368538874703872">via</a>)</p>
 </blockquote>
+</div>
 </div>
 <div class="footnotes">
 <hr />
