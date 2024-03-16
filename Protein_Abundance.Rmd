@@ -15,15 +15,18 @@ output:
 tags: protein_abundance
 bibliography: references.bib  
 ---
-# Packages used in this workflow 
+# Packages used 
 Packages used are from @zhang2018proteome
 ```{r used_packages}
+library(factoextra)
+library(FactoMineR)
 library(DEP)
 library(stringr)
 library(tidyr)
 library(dplyr)
+library(SummarizedExperiment)
+library(readxl)
 ```
-
 # Data Loading - Raw protein abundance data
 ```{r protein_abundance_data}
 prot_abundance <- read.table(file = "Protein_abundance.tsv",
@@ -42,8 +45,8 @@ anyDuplicated(prot_abundance$X1)
 ```
 Generate a SummerizedExperiment object for downstream analysis from the raw protein abundance data - As there is no replicate for each sample, the column names of the object ends with NA as shown in the warning message, which will not influence the downstrean analysis.
 ```{r}
-# Transfer raw values into log2-transformed data - for better differential comparison
-prot_abundance[, -1] <- log(prot_abundance[, -1], 2) + 1
+# # Transfer raw values into log2-transformed data - for better differential comparison
+# prot_abundance[, -1] <- log(prot_abundance[, -1], 2) + 1
 
 # Sort the columns of the data frame numerically
 prot_abundance <- prot_abundance[, c("X1", str_sort(colnames(prot_abundance[,-1]), numeric = TRUE))]
@@ -100,21 +103,83 @@ plot_normalization(SE_filtered_missingvals, SE_norm)
 
 ```
 
-## annotation data
-```{r annotation}
-## Loading required package: readxl
-# annotation <- read_excel("sampleAnnotation.xls")
-# head(annotation, 10)
+
+```{r}
+plot_missval(SE_filtered_missingvals)
 ```
 
-#### what annatations provided, what are the names of the clinical information
+
+```{r}
+plot_detect(SE_filtered_missingvals)
+```
+
+
+## Data Imputation
+
+```{r}
+SE_imputed <- impute(SE_norm, fun = "knn", rowmax = 0.9)
+plot_imputation(SE_norm, SE_imputed)
+
+```
 
 
 
 # Quality Assessment
 
+Vertivally combine prot_abundance and sample annotation data 
+```{r}
+prot_abundance <- read.table(file = "Protein_abundance.tsv", sep = "\t", header = TRUE)
+annotation <- read_excel("sampleAnnotation.xls")
+
+prot_abundance <- prot_abundance[-1] %>% t() %>% as.data.frame() %>% setNames(prot_abundance[,1])
+prot_abundance <- prot_abundance[str_sort(rownames(prot_abundance), numeric = TRUE), ]
+data_combined <- data.frame(annotation[-50,], log2(prot_abundance))
+
+# row - proteins, col - samples
+# data_combined <- data_combined[-1] %>% t() %>% as.data.frame() %>% setNames(data_combined[,1])
+
+data_combined[1:10, 1:10]
+```
+
+```{r}
+mca <- MCA(data_combined, graph = FALSE)
+fviz_mca_ind(mca, col.ind = "steelblue")
+```
+
+```{r operator}
+grp <- as.factor(data_combined[, "operator"])
+mca <- MCA(data_combined, graph=FALSE)
+p <- fviz_mca_ind(mca, label="none", habillage=grp, addEllipses=TRUE, ellipse.level=0.95)
+print(p)
+```
+
+```{r batch}
+grp <- as.factor(data_combined["batch", ])
+mca <- MCA(data_combined, graph=FALSE)
+p <- fviz_mca_ind(mca, label="none", habillage=grp, addEllipses=TRUE, ellipse.level=0.95)
+print(p)
+```
+
+```{r freeThawCycle}
+grp <- as.factor(data_combined["freeThawCycle", ])
+mca <- MCA(data_combined, graph=FALSE)
+p <- fviz_mca_ind(mca, label="none", habillage=grp, addEllipses=TRUE, ellipse.level=0.95)
+print(p)
+```
+
+TODO 
+- [ ] Follow PBD for question 1
+- [ ] Find Feature selection in PBD
+- [ ] Find tutorial for PCA with mixed data
+
+
+
 
 # Identify Protein Markers for Prognosis
+
+
+
+# Session Information
 
 
 ```{r setup, include = FALSE}
