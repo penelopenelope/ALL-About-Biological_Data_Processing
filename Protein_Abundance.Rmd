@@ -447,25 +447,25 @@ selected_feature_UniProt_IDs
 Following the previous prediction setting, these genes can be tested to see their predictive power - 
 
 ```{r}
-X <- assay(se_imputed)[which(rowData(se)$protID %in% selected_feature_UniProt_IDs), ]
+# X <- assay(se_imputed)[which(rowData(se)$protID %in% selected_feature_UniProt_IDs), ]
 
-ctrl2 <- rfeControl(functions = caretFuncs,
-                   method = "repeatedcv",
-                   repeats = 5,
-                   verbose = FALSE)
+# ctrl2 <- rfeControl(functions = caretFuncs,
+#                    method = "repeatedcv",
+#                    repeats = 5,
+#                    verbose = FALSE)
 
-selected_feature_survival_period <- rfe(t(X), annotation$survival_period,
-                 sizes = subsets,
-                 rfeControl = ctrl2,
-                 model = "enet")
+# selected_feature_survival_period <- rfe(t(X), annotation$survival_period,
+#                  sizes = subsets,
+#                  rfeControl = ctrl2,
+#                  model = "enet")
                  
 ```
 
 ```{r}
-selected_feature_survival_period
+# selected_feature_survival_period
 ```
 ```{r}
-selected_feature_survival_period$fit
+# selected_feature_survival_period$fit
 ```
 
 Besides the elastic net model shown in the code, the other models tested includes linear regression, 
