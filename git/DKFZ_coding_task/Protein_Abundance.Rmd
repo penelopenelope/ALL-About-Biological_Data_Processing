@@ -1,0 +1,481 @@
+---
+title: "Analysis Report for Mass Spectrometry Data"
+author: Siwen Chen
+date: "`r Sys.Date()`"
+theme: united
+highlight: tango
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    toc_float:
+      collapsed: true
+      smooth_scroll: false
+tags: protein_abundance
+bibliography: references.bib  
+---
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(collapse = TRUE, warning = FALSE, message = FALSE, comment = "#>") 
+```
+
+# Task description
+
+**Data**
+
++ A tsv file (“Protein_abundance.tsv”) - protein abundance measured by label-free mass-spectrometry for chronic lymphocytic leukemia (CLL) patient samples
++ An excel table (“sampleAnnotation.xls”) - some basic annotations for those samples
+
+**Task**
+
++ process the protein abundance dataset
++ assess its quality
++ identify protein markers for prognosis
+
+# Data Preprocessing
+
+## List packages used 
+
+```{r used_packages}
+library(DOSE)
+library(enrichplot)
+library(clusterProfiler)
+library(factoextra)
+library(FactoMineR)
+library(DEP)
+library(stringr)
+library(tidyr)
+library(dplyr)
+library(SummarizedExperiment)
+library(readxl)
+library(caret)
+library(UniProt.ws)
+library(ggplot2)
+```
+
+## Data Inspection - Raw protein abundance data
+```{r protein_abundance_data}
+prot_abundance <- read.table(file = "Protein_abundance.tsv", sep = "\t", header = TRUE)
+
+# Sort the columns of the data frame numerically
+prot_abundance <- prot_abundance[, c("X1", str_sort(colnames(prot_abundance[,-1]), numeric = TRUE))]
+
+# Set "X1" column as row index
+rownames(prot_abundance) <- prot_abundance$X1
+prot_abundance <- prot_abundance[, 2:ncol(prot_abundance)]
+
+head(prot_abundance, 2)
+```
+
+## Data Inspection - Sample Annotation Data
+```{r}
+annotation <- as.data.frame(read_excel("sampleAnnotation.xls"))
+names(annotation)[names(annotation) == 'total protein concentration'] <- 'total.protein.concentration'
+names(annotation)[names(annotation) == 'last known alive'] <- 'last.known.alive'
+names(annotation)[names(annotation) == 'date of diagnosis'] <- 'date.of.diagnosis'
+rownames(annotation) <- annotation$'sample ID'
+
+# The last sample ID in the annotation file is removed, as there is no protein abundance measurement with this sample.
+annotation <- annotation[1:49, 2:ncol(annotation)]
+
+# Convert data types
+annotation$operator <- as.factor(annotation$operator)
+annotation$batch <- as.factor(annotation$batch)
+annotation$total.protein.concentration <- as.double(unlist(annotation$total.protein.concentration))
+annotation$freeThawCycle <- as.factor(annotation$freeThawCycle)
+
+head(annotation, 2)
+```
+
+## Create a SummerizedExperiment object containing both data 
+
+```{r}
+# Prepare the protein abundance data as assay data for the SE object
+prot_abundance_se <- read.table(file = "Protein_abundance.tsv", sep = "\t", header = TRUE)
+prot_abundance_se <- prot_abundance_se[, c("X1", str_sort(colnames(prot_abundance_se[,-1]), numeric = TRUE))]
+prot_abundance_se <- separate_wider_delim(prot_abundance_se, cols = X1, delim = "|", names = c("prefix", "protID", "geneName"))
+prot_abundance_se <- make_unique(prot_abundance_se, "geneName", "protID")
+
+column_names <- grep("A_1_", colnames(prot_abundance_se))
+se <- make_se_parse(prot_abundance_se, column_names, mode = "delim", sep = "-")
+
+```
+
+Inspection on the SummerizedExperiment object
+
+```{r}
+se
+```
+
+Inspection on the protein abundance data enclosed in the _se_ object
+
+```{r}
+head(assay(se))
+```
+
+# TASK - Data processing
+
+The protein abundance in the tsv file is not normalized and has missing values, which is very common in 
+the data table you will get from a proteomic facility. You need to use a proper way to normalize the
+ protein abundance and deal with missing values.
+
+## Data Normalization
+
+The raw data is first log2-transformed when constructing the SummerizedExperiment object. This log-transformation
+ is for better observation on fold changes between protein abundance which is more biological-relevant (like doubling),
+  instead of additive changes. After that, the data normalization is implemented for better comparison of
+   protein abundances among different samples and removal technical variability, 
+
+```{r}
+se_norm <- normalize_vsn(se)
+plot_normalization(se, se_norm) +
+        theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())
+```
+
+After data normalization, it can be observed that the protein abundance data fall into a closer range for comparison.
+
+## Data Imputation
+
+### Data Visualization before Data Imputation
+
+Plot the number of proteins overlapped among samples - The barplot shows that most proteins can be identified in all samples, as indicated in the last bar.
+
+```{r}
+plot_frequency(se)
+```
+
+The figure above displays the data missingness among samples.
+
+```{r}
+plot_missval(se)
+```
+
+### Data Imputation
+As there is no additional information provided about the experiment design and different processing steps among samples, 
+it is assumed that the missing values in the MS data are completly at random. Given this situation, k-Nearest Neighbor 
+(kNN) algorithm is utilized for the protein data imputation, as it normally promises better predictions. There are also
+ alternative imputation methods, for example, Local Least squares (LLSimpute), which was proved closer to correct data
+  points^[Lazar, Cosmin, et al. "Accounting for the multiple natures of missing values in label-free quantitative 
+  proteomics data sets to compare imputation strategies." Journal of proteome research 15.4 (2016): 1116-1125.].
+
+```{r}
+se_imputed <- impute(se_norm, fun = "knn", k=100, rowmax = 1)
+```
+
+### Data Visualization after Data Imputation
+```{r}
+plot_imputation(se_norm, se_imputed)
+```
+
+Above the imputation effect is visualized. It shows that although it appears an additional peak, it is 
+still close to the original peak and fit the original distribution.
+
+```{r}
+plot_numbers(se_imputed) +
+        theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+Also, it can be observed that after data imputation, there is 0 missing data among the samples now.
+
+# TASK - Quality assessment
+   
+The protein abundance measurement can often be influenced by technical factors, such as batch effect, operators, 
+total protein concentrations, and free thaw cycles of the cells. Those technical factors could potentially act as 
+confounders for downstream analysis. In the sample annotation table, you will find the technical factors and you
+ need to evaluate whether they will confound downstream analysis.
+
+## Multivariate Linear Regression for Confounding Factor Identification
+
+Here the number of identified proteins in each sample is taken as the evaluation standard.
+
+```{r}
+# Add the number of unidentified proteins in each sample as the dependent variable to the annotation dataframe for multivariate linear regression
+prot_abundance_na_count <-sapply(prot_abundance, function(y) sum(length(which(is.na(y)))))
+annotation$NA_count <- prot_abundance_na_count
+
+head(annotation, 2)
+
+```
+
+The confounding effect of the technical factors are evaluated by the results from linear regression models. First, a multivariate 
+linear regression model is built using all technival varaiables. Later on, individual univariate linear regression models are 
+built for each potential confounding factor against the dependent variable. By comparison on the different coefficients of 
+the potential confounding variables between the univariate and multivariate linear regression models, the confounding 
+effect can be inferred. As a rule of thumb, if the change of the coefficient is more than 10%, this variable can be a 
+confounding factor^[VanderWeele, Tyler J. "Principles of confounder selection." European journal of epidemiology 34 (2019): 211-219.].
+
+### Build a multivariate linear regression with all technical factors
+```{r}
+full_model <- lm(formula = NA_count ~ operator + batch + total.protein.concentration + freeThawCycle, data = annotation)
+summary_full <- summary(full_model)
+summary_full
+```
+
+The results show that the category 'batch6' is highly colinear with other variable ('opertor'), hence there is no coefficient for this category.
+
+### Confounding Effect of the variable 'operator'
+
+#### Build a univariate linear regression with only variable 'operator' to assess its confounding effect
+
+```{r}
+operator_model <- lm(formula = NA_count ~ operator, data = annotation)
+summary_operator <- summary(operator_model)
+summary_operator
+```
+
+#### Compute the change of the variable coefficient - 'operator'
+
+```{r}
+operator_change = abs(summary_operator$coefficients[1:2, 1] - summary_full$coefficients[1:2,1])/summary_operator$coefficients[1:2,1] * 100
+operator_change[2:3]
+```
+
+It shows that the coefficient change is more than 10%, hence the variable 'operator' is a confounding factor.
+
+### Confounding Effect of the variable 'batch'
+
+#### Build a univariate linear regression with only variable 'batch' to assess its confounding effect
+
+```{r}
+batch_model <- lm(formula = NA_count ~ batch, data = annotation)
+summary_batch <- summary(batch_model)
+summary_batch
+```
+
+#### Compute the change of the variable coefficient - 'batch'
+
+```{r}
+batch_change = abs(summary_batch$coefficients[2:6,1] - summary_full$coefficients[4:8,1])/summary_batch$coefficients[2:6,1] * 100
+batch_change
+```
+
+It shows that the coefficient change is far more than 10%, hence the variable 'batch' is also a confounding factor.
+
+### Confounding Effect of the variable 'total protein concentration'
+
+#### Build a univariate linear regression with only variable 'total protein concentration' to assess its confounding effect
+
+```{r}
+prot_model <- lm(formula = NA_count ~ total.protein.concentration, data = annotation)
+summary_prot <- summary(prot_model)
+summary_prot
+```
+
+#### Compute the change of the variable coefficient - 'total protein concentration'
+
+```{r}
+prot_change = abs(summary_prot$coefficients[2, 1] - summary_full$coefficients[9,1])/summary_prot$coefficients[2,1] * 100
+prot_change
+```
+
+It shows that the coefficient change is more than 10%, hence the variable 'total protein concentration' is a confounding factor.
+
+### Confounding Effect of the variable 'freeThawCycle'
+
+#### Build a univariate linear regression with only variable 'freeThawCycle' to assess its confounding effect
+
+```{r}
+freeThawCycle_model <- lm(formula = NA_count ~ freeThawCycle, data = annotation)
+summary_freeThawCycle <- summary(freeThawCycle_model)
+summary_freeThawCycle
+```
+
+#### Compute the change of the variable coefficient - 'freeThawCycle'
+
+```{r}
+freeThawCycle_change = abs(summary_freeThawCycle$coefficients[2, 1] - summary_full$coefficients[10,1])/summary_freeThawCycle$coefficients[2,1] * 100
+freeThawCycle_change
+```
+
+It shows that the coefficient change is more than 10%, hence the variable 'freeThawCycle' is also a confounding factor.
+
+As a conclusion, all these technical factors have confounding effects on the downstream analysis. Here only the binary situations 
+of protein abundance measurement are taken as dependent variable to assess the confounding effects. Alternative variables, 
+like average protein abundance measurement or the protein abundance measurement of top 500 proteins, can also be in consideration to explore.
+
+# TASK - Identify protein markers for prognosis
+
+In the sample annotation file, you will find three columns that contain the clinical information, which can be used to estimate 
+the overall survival, of the CLL patients. You need to select proteins whose expression can be used to predict the overall survival 
+of those patients using a proper statistical model. You may also do an enrichment analysis to see which pathway is potentially 
+related to clinical outcome.
+
+## Data-driven Feature Selection 
+
+Here the recursive feature elimination is implemented to select from all features and decide most relevant proteins to the binary clinical output 'died'. 
+However, based on inspection on this observation, the high data imbalance can be noticed (43 cases died, 7 cases alive). 
+Hence, it can be expected that the with this observation, the prediction model can be easily overfitting and cannot be generalized to unseen data.
+
+```{r}
+summary(annotation$died)
+```
+
+The evaluation model is Random Forest, and the model is trained and tested repeatedly for 5 times in a 10-fold cross-validation manner. 
+Eventually, the overall performance is compared between models with different numbers of involved features (100, 200, 300, 400 and 500 respectively), and 
+the predictors of the model with best overall performance are decided as the selected features potential to predict the overall survival.
+
+```{r}
+set.seed(2024)
+
+y <- as.factor(annotation$died)
+subsets <- c(100, 200, 300, 400, 500)
+
+ctrl <- rfeControl(functions = rfFuncs,
+                   method = "repeatedcv",
+                   repeats = 5,
+                   verbose = FALSE)
+
+rfProfile <- rfe(t(assay(se_imputed)), y,
+                 sizes = subsets,
+                 rfeControl = ctrl)
+```
+
+```{r}
+rfProfile
+```
+
+The results show that the prediction model with 300 protein features performs the best generally, with a classification accuracy around 86%. 
+
+Here it displays the prediction output of the last random forest model. However, as expected, it shows the high accuracy in fact is generated 
+by classifying every sample as 'died'.
+
+```{r}
+rfProfile$fit
+```
+
+Alternatively, the survival period of the patients can be another reasonable observation worthy to explore. Utilizing this numeric observation, 
+the prediction task turns to a regression process.
+
+First, the survival period needs to be calculated, based on the other two clinical information from the annotation data frame - 'date of diagnosis' and 'last known alive'.
+
+```{r}
+annotation$survival_period <- as.numeric(abs(difftime(annotation$last.known.alive, annotation$date.of.diagnosis, units = "days")))
+
+```
+
+Still, random forest is utilized in this regression task. Other settings are kept the same.
+
+```{r}
+rfProfile_survival_period <- rfe(t(assay(se_imputed)), annotation$survival_period,
+                 sizes = subsets,
+                 rfeControl = ctrl)
+```
+
+```{r}
+rfProfile_survival_period
+```
+
+The results show that the prediction model with 200 protein features performs the best overall, with an adjusted R square accuracy around 0.24. 
+This low adjusted R square tells that about 24% variance of the observations can be explained by the predictors, which is relatively low.
+Although it seems the prediction is getting better for the model with 500 features, achieving an adjusted R square about 30%, the large amount of
+predictors is a disadvantage.  
+
+The true reason behind both poor performance is that the number of predictor (about 4000 proteins) is far more than the sample number (only about 50),
+which makes the models prone to overfitting. Given this situation, data-based optimization cannot be helpful to figure out the biomarkers, 
+while a scenario-related feature selection, like pathway-based, can be an option.
+
+## Pathway Enrichment analysis
+
+To implement an enrichment analysis, first the original UniProt IDs are converted to stable and unique Entrez IDs. 
+
+```{r}
+# Retrieve the Uniprot protein ID of the selected features
+proteinIDs <- rowData(se)$ID
+
+up <- UniProt.ws(taxId=9606)
+UniProt2Entrez <- select(up, proteinIDs, to = "GeneID")
+EntrezIDs <- UniProt2Entrez[,2]
+
+head(EntrezIDs)
+```
+
+Enrichment analysis can be implemented by the following codes - 
+
+```{r}
+pathway_enrichment <- enrichKEGG(gene = EntrezIDs, organism = 'hsa', pvalueCutoff = 0.05)
+pathway_enrichment
+```
+
+The outputs show that within the total 3942 genes, 3921 genes can be identified with significant enrichment among the protein abundance data from the patients. 
+
+```{r}
+# pathway_enrichment@result$Description
+```
+
+The top enrichment pathways with the corresponding gene counts are shown as below - 
+
+```{r}
+barplot(pathway_enrichment, showCategory = 20)
+```
+
+Below the gene network displays which genes are involved in these significant terms. It also shows that a gene can belong to multiple pathways.
+
+```{r}
+pathway_enrichment_x <- setReadable(pathway_enrichment, 'org.Hs.eg.db', 'ENTREZID')
+p <- cnetplot(pathway_enrichment_x, node_label="all", color_category='firebrick', color_gene='steelblue') 
+cowplot::plot_grid(p)
+```
+
+Furthermore, in the enrichment map shown below, enrichment pathways are linked by overlapping gene sets, from which the enrichment pathways like
+"Prion disease", "Diabetic cardiomyopathy", "Huntington disease", "Parkinson disease" and "Human cytomegaglovirus infection" prominent the functional modules.
+
+```{r}
+pathway_enrichment_x2 <- pairwise_termsim(pathway_enrichment)
+p1 <- emapplot(pathway_enrichment_x2)
+cowplot::plot_grid(p1)
+```
+
+# Extension and Discussion
+
+From this output, it implies the potential pathways related to the clinical outcome, which greatly reduces the original large feature space, and could be used 
+to predict the overall survival of the patients. For example, the most significant pathways corresponds to genes with Entrez IDs and UniProt IDs - 
+
+```{r}
+selected_feature_Entrez_IDs <- pathway_enrichment@result$geneID[1:1000]
+selected_feature_Entrez_IDs <- strsplit(selected_feature_Entrez_IDs, split = "/")
+selected_feature_UniProt_IDs <- UniProt2Entrez$From[which(unlist(UniProt2Entrez$To) %in% unlist(selected_feature_Entrez_IDs))]
+
+# selected_feature_Entrez_IDs
+selected_feature_UniProt_IDs
+```
+
+Following the previous prediction setting, these genes can be tested to see their predictive power - 
+
+```{r}
+# X <- assay(se_imputed)[which(rowData(se)$protID %in% selected_feature_UniProt_IDs), ]
+
+# ctrl2 <- rfeControl(functions = caretFuncs,
+#                    method = "repeatedcv",
+#                    repeats = 5,
+#                    verbose = FALSE)
+
+# selected_feature_survival_period <- rfe(t(X), annotation$survival_period,
+#                  sizes = subsets,
+#                  rfeControl = ctrl2,
+#                  model = "enet")
+                 
+```
+
+```{r}
+# selected_feature_survival_period
+```
+```{r}
+# selected_feature_survival_period$fit
+```
+
+Besides the elastic net model shown in the code, the other models tested includes linear regression, 
+support vector machine, and neural network models. However, none of them shows a better performance than the random 
+forest used previously. Given this situation, a more complex and suitable model to capture the data pattern 
+can still be worthy exploration. Furthermore, adding more sample data or control sample data, compiled with 
+differential expression data analysis will be helpful to identify more robust biomarkers for diagnosis.
+
+
+# Session Information
+```{r}
+sessionInfo()
+```
